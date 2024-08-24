@@ -9,6 +9,10 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Const INDENT2 = "        "
+Const INDENT3 = "            "
+
+
 ' ---------------------------------------------
 ' DELETE文を生成
 ' ---------------------------------------------
@@ -47,12 +51,19 @@ End Function
 
 ' -----------------------------------------------
 ' テーブルデータをもとにINSERT文を生成する
-' @param dbms 対象のDBMS。対応しているのはmysql,oracle
+' @param dbms 対象のDBMS。対応しているのはmysql,oracle,laravel
 ' @param data テーブルデータのオブジェクト
 ' @param multipleInsertCount mysqlのbulk insertをする際の、INSERT1本での登録最大数。
 ' @param nullString フィールド値がこれに一致するものは、nullであるとみなす。
 ' -----------------------------------------------
 Public Function generateInsert(dbms As String, data As TableData, multipleInsertCount As Long, nullString As String)
+    
+    ' laravelの場合はsqlではないので別処理にする
+    If dbms = "laravel" Then
+        Set generateInsert = generateInsertLaravel(data, nullString)
+        Exit Function
+    End If
+    
     Dim c As New Collection
     Set generateInsert = c
     
@@ -186,8 +197,87 @@ Private Function editColumnString(dbms As String, value As String, dataType As S
             End
         End Select
     End If
-    
-    
 End Function
+
+' -----------------------------------------------
+' テーブルデータをもとにLaravel用のシーダーを生成する
+' @param dbms 対象のDBMS。対応しているのはmysql,oracle
+' @param data テーブルデータのオブジェクト
+' @param multipleInsertCount mysqlのbulk insertをする際の、INSERT1本での登録最大数。
+' @param nullString フィールド値がこれに一致するものは、nullであるとみなす。
+' -----------------------------------------------
+Private Function generateInsertLaravel(data As TableData, nullString As String)
+    Dim c As New Collection
+    
+    ' レコードの配列開始
+    c.Add INDENT2 & "$recs = ["
+    
+    Dim v As Variant
+    For Each v In data.records
+        Dim record As New Collection
+        Set record = v
+        Dim rec As String
+        rec = generateInsertLaravelOne(data.columnNames, data.columnTypes, record, nullString)
+        c.Add rec
+    Next v
+    
+    ' レコードの配列終了
+    c.Add INDENT2 & "];"
+    ' レコード配列を用いてDBにcreateをかける
+    c.Add INDENT2 & "foreach ($recs as $rec) {"
+    c.Add INDENT3 & "\App\Models\" & data.tableName & "::create($rec);"
+    c.Add INDENT2 & "}"
+    
+    Set generateInsertLaravel = c
+End Function
+
+' -----------------------------------------------
+' Laravelのレコード1件分の連想配列を作成する
+' @param names カラム名のCollection
+' @param columnTypes カラムのデータ型のCollection
+' @param values カラム値のCollection
+' @param nullString フィールド値がこれに一致するものは、nullであるとみなす。
+' -----------------------------------------------
+Private Function generateInsertLaravelOne(names As Collection, columnTypes As Collection, values As Collection, nullString As String)
+    Dim s As String
+    s = INDENT3 & "["
+    
+    Dim i As Long
+    For i = 1 To names.Count
+        ' 2カラム目以降はカンマをつける
+        If i > 1 Then
+            s = s & ", "
+        End If
+        s = s & "'" & names.Item(i) & "' => " & editColumnStringForLaravel(values.Item(i), columnTypes.Item(i), nullString)
+    Next i
+    s = s & "],"
+
+    generateInsertLaravelOne = s
+End Function
+
+' -----------------------------------------------
+' Laravelのカラム1個の値を作成する
+' @param value カラム値
+' @param columnType カラムのデータ型
+' @param nullString フィールド値がこれに一致するものは、nullであるとみなす。
+' -----------------------------------------------
+Private Function editColumnStringForLaravel(value As String, columnType As String, nullString As String)
+    Dim s As String
+    If value = nullString Then
+        ' null
+        s = "null"
+    Else
+        If columnType = "string" Then
+            ' 文字列（ダブルクォートで括る）
+            s = """" & value & """"
+        Else
+            ' 文字列以外（ダブルクォートで括らない）
+            s = value
+        End If
+    End If
+
+    editColumnStringForLaravel = s
+End Function
+
 
 
