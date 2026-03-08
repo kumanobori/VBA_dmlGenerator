@@ -1,4 +1,4 @@
-Attribute VB_Name = "module_ExcelToMysqlDml"
+Attribute VB_Name = "module_DataBookToMysqlDml"
 Option Explicit
 
 

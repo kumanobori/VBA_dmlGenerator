@@ -1,4 +1,4 @@
-Attribute VB_Name = "module_copyTableDefToDataBook"
+Attribute VB_Name = "module_TableDefToDataBook"
 Option Explicit
 
 Const CONTROL_SHEET_NAME = "CONTROL"
@@ -44,7 +44,13 @@ Sub createSkeleton()
     Dim typeDictionary As Object: Set typeDictionary = createDictionary(typeDictionaryStr)
     
     ' ブック定義 定義ブック
+    On Error Resume Next
     Dim wbDef As Workbook:  Set wbDef = Workbooks(defFileName)
+    On Error GoTo 0
+    If wbDef Is Nothing Then
+        MsgBox "DB定義書ファイル名に指定したブックを開いた状態で実行してください。" & vbCrLf & "指定ブック名：" & defFileName
+        End
+    End If
     
     ' シート定義 コピー元のシート
     Dim wsBase As Worksheet: Set wsBase = wbControl.Worksheets(BASE_SHEET_NAME)
@@ -205,7 +211,7 @@ Private Function getDataType(physicalName As String, typeOnDef As String, typeDi
     
     ' DB定義書にあればそれを使う
     If typeOnDef <> "" Then
-        getDataType = typeOnDef
+        getDataType = convertDataType(typeOnDef)
         Exit Function
     End If
     
@@ -220,3 +226,27 @@ Private Function getDataType(physicalName As String, typeOnDef As String, typeDi
     
 End Function
 
+' データ型を変換する
+' 必要なのは型名だけなので、それ以外を除去する。
+Private Function convertDataType(dataType As String) As String
+    
+    Dim s As String: s = dataType
+    
+    ' まず先頭末尾の空白を除去
+    s = Trim(s)
+    
+    ' ( があればそれ以降を除去
+    Dim pos As Long
+    pos = InStr(s, "(")
+    If pos <> 0 Then
+        s = Left(s, pos - 1)
+    End If
+    
+    ' 空白があればそれ以降を除去
+    pos = InStr(s, " ")
+    If pos <> 0 Then
+        s = Left(s, pos - 1)
+    End If
+    
+    convertDataType = s
+End Function
